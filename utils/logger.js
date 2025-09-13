@@ -1,4 +1,4 @@
-const printServerInfo = (port, fastApiHealthy) => {
+const printServerInfo = (port, pythonApiHealthy) => {
   console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║                    Chatbot Server Started                   ║
@@ -10,7 +10,7 @@ const printServerInfo = (port, fastApiHealthy) => {
 ╠══════════════════════════════════════════════════════════════╣
 ║ Environment: ${process.env.NODE_ENV || 'development'}                              ║
 ║ MongoDB: Connected                                           ║
-║ FastAPI: ${fastApiHealthy ? 'Connected' : 'Disconnected'}                                   ║
+║ Python AI API: ${pythonApiHealthy ? 'Connected' : 'Disconnected'}                           ║
 ╚══════════════════════════════════════════════════════════════╝
   `);
 };

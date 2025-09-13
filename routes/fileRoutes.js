@@ -34,22 +34,6 @@ function createFileRoutes() {
     }
   );
 
-  // Check upload status
-  router.get('/files/status/:fileId', 
-    authenticateToken, 
-    async (req, res) => {
-      await fileHandler.getHTTPUploadStatus(req, res);
-    }
-  );
-
-  // Get user's uploaded files
-  router.get('/files', 
-    authenticateToken, 
-    async (req, res) => {
-      await fileHandler.getUserFiles(req, res);
-    }
-  );
-
   // Upload service health check
   router.get('/files/health', async (req, res) => {
     const isHealthy = await fileHandler.checkUploadServiceHealth();

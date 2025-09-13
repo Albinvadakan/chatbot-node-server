@@ -145,6 +145,16 @@ class WebSocketServer {
 
   async handleChatMessage(clientId, message) {
     try {
+      const MessageHandler = require('./messageHandler');
+      const messageHandler = new MessageHandler();
+      
+      // Validate message format
+      const validation = messageHandler.validateMessage(message);
+      if (!validation.valid) {
+        this.sendError(clientId, validation.error);
+        return;
+      }
+
       // Send typing indicator
       this.sendMessage(clientId, {
         type: 'typing',
@@ -152,11 +162,9 @@ class WebSocketServer {
         timestamp: new Date().toISOString()
       });
 
-      // Forward to message handler (will be implemented in the next step)
-      const MessageHandler = require('./messageHandler');
-      const messageHandler = new MessageHandler();
-      
+      // Forward to message handler
       await messageHandler.handleChatMessage(clientId, message, this);
+      
     } catch (error) {
       console.error('Error handling chat message:', error);
       this.sendError(clientId, 'Failed to process chat message');

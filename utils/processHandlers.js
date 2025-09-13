@@ -32,19 +32,25 @@ const setupProcessHandlers = (server, wsServer, authService) => {
   const shutdownHandler = gracefulShutdown(server, wsServer, authService);
 
   // Handle different termination signals
-  process.on('SIGTERM', (signal) => shutdownHandler(signal));
-  process.on('SIGINT', (signal) => shutdownHandler(signal));
-  process.on('SIGUSR2', (signal) => shutdownHandler(signal)); // Nodemon restart
+  process.on('SIGTERM', (signal) => {
+    shutdownHandler(signal);
+  });
+  process.on('SIGINT', (signal) => {
+    shutdownHandler(signal);
+  });
+  process.on('SIGUSR2', (signal) => {
+    shutdownHandler(signal);
+  });
   
   // Handle uncaught exceptions
-  process.on('uncaughtException', (error) => {
+  process.on('uncaughtException', async (error) => {
     console.error('Uncaught Exception:', error);
-    shutdownHandler('uncaughtException');
+    await shutdownHandler('uncaughtException');
   });
 
-  process.on('unhandledRejection', (reason, promise) => {
+  process.on('unhandledRejection', async (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-    shutdownHandler('unhandledRejection');
+    await shutdownHandler('unhandledRejection');
   });
 };
 

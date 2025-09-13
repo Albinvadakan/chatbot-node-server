@@ -1,22 +1,24 @@
 # Chatbot Server Node.js
 
-A WebSocket-based chatbot server with authentication, built with Node.js, Express, MongoDB Atlas, and JWT.
+A WebSocket-based chatbot server with authentication, built with Node.js, Express, MongoDB Atlas, and JWT. Features integration with Python FastAPI for AI-powered medical chat responses.
 
 ## Features
 
 - 🔐 **JWT Authentication** with MongoDB Atlas
 - 🔌 **WebSocket Server** with real-time communication
-- 🤖 **AI Chat Integration** with FastAPI streaming responses
+- 🤖 **Python AI Integration** with FastAPI medical chat endpoint
+- 🏥 **Medical Context Support** with patient record integration
 - 👥 **Human Escalation** support
 - 📝 **Session Management** with in-memory storage
-- 🔄 **Token-by-token streaming** from OpenAI responses
+- ⚡ **Real-time Responses** from Python AI service
 - ❤️ **Health monitoring** and graceful shutdown
+- 🛡️ **Input Validation** and error handling
 
 ## Prerequisites
 
 - Node.js 16+ 
 - MongoDB Atlas account
-- FastAPI server (for AI responses)
+- Python FastAPI server running on port 8000 (for AI responses)
 
 ## Installation
 
@@ -43,7 +45,7 @@ A WebSocket-based chatbot server with authentication, built with Node.js, Expres
    JWT_SECRET=your-super-secret-jwt-key-here-change-in-production
    JWT_EXPIRES_IN=24h
    
-   # FastAPI Configuration
+   # Python FastAPI Configuration
    FASTAPI_URL=http://localhost:8000
    
    # CORS Configuration
@@ -199,26 +201,60 @@ ws.onmessage = (event) => {
 };
 ```
 
-## FastAPI Integration
+## Python AI Integration
 
-The server expects a FastAPI endpoint at `/api/v1/chat/ai-response` that:
+This server integrates with a Python FastAPI service for AI-powered medical chat responses.
+
+### API Requirements
+
+The Python FastAPI service must provide an endpoint at `/api/v1/chat/ai-response` that:
 
 1. **Accepts POST requests** with:
    ```json
    {
-     "query": "User message",
-     "user_id": "user123",
-     "session_id": "session456",
-     "context": {...}
+     "query": "What are the patient's symptoms?"
    }
    ```
 
-2. **Returns streaming responses** in Server-Sent Events format:
+2. **Returns JSON responses** with:
+   ```json
+   {
+     "response": "AI-generated contextual response...",
+     "patient_context": [
+       {
+         "record_id": "chunk_abc123",
+         "content": "Relevant patient record excerpt...",
+         "score": 0.895,
+         "metadata": {
+           "patient_id": "PATIENT_001",
+           "source": "medical_report.pdf"
+         }
+       }
+     ],
+     "timestamp": "2025-09-13T11:30:45.123Z"
+   }
    ```
-   data: {"choices": [{"delta": {"content": "Hello"}}]}
-   data: {"choices": [{"delta": {"content": " there"}}]}
-   data: [DONE]
-   ```
+
+### Testing the Integration
+
+Test your Python API connection:
+```bash
+node test-python-integration.js
+```
+
+### Configuration
+
+Ensure your Python FastAPI server is running:
+```bash
+uvicorn main:app --reload --port 8000
+```
+
+Set the correct URL in your `.env` file:
+```env
+FASTAPI_URL=http://localhost:8000
+```
+
+For detailed integration documentation, see [PYTHON_INTEGRATION.md](PYTHON_INTEGRATION.md).
 
 ## Database Schema
 

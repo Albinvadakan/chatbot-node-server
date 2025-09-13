@@ -12,18 +12,37 @@ class MessageHandler {
         throw new Error('Session not found');
       }
 
-      // Prepare request to FastAPI
+      // Extract query from message
+      const query = message.content || message.message || message.query;
+      
+      if (!query || query.trim().length === 0) {
+        wsServer.sendError(clientId, 'Message content is required');
+        return;
+      }
+
+      // Validate query length (1-2000 characters as per API spec)
+      if (query.length > 2000) {
+        wsServer.sendError(clientId, 'Message too long. Maximum 2000 characters allowed.');
+        return;
+      }
+
+      // Prepare request to your FastAPI endpoint
       const requestData = {
-        query: message.content || message.message,
-        user_id: session.userId,
-        session_id: clientId,
-        context: this.buildContext(session)
+        query: query.trim()
       };
 
-      console.log(`Forwarding chat message to FastAPI: ${message.content}`);
+      console.log(`Forwarding chat message to Python AI API: ${query}`);
 
-      // Make streaming request to FastAPI
-      await this.streamFromFastAPI(clientId, requestData, wsServer);
+      // Store user message in session
+      session.messages.push({
+        type: 'chat',
+        message: query,
+        timestamp: new Date(),
+        from: 'user'
+      });
+
+      // Make request to your Python FastAPI
+      await this.callPythonAIAPI(clientId, requestData, wsServer, session);
 
     } catch (error) {
       console.error('Error in handleChatMessage:', error);
@@ -31,199 +50,142 @@ class MessageHandler {
     }
   }
 
-  async streamFromFastAPI(clientId, requestData, wsServer) {
+  async callPythonAIAPI(clientId, requestData, wsServer, session) {
     try {
+      console.log('Calling Python AI API with:', requestData);
+      
       const response = await axios({
         method: 'POST',
         url: `${this.fastApiUrl}/api/v1/chat/ai-response`,
         data: requestData,
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'text/event-stream'
+          'Accept': 'application/json'
         },
-        responseType: 'stream',
-        timeout: 60000 // 60 seconds timeout
+        timeout: 30000 // 30 seconds timeout
       });
 
-      let buffer = '';
-      let messageId = this.generateMessageId();
+      // Validate response structure
+      if (!response.data || typeof response.data.response !== 'string') {
+        throw new Error('Invalid response format from AI API');
+      }
+
+      const aiResponse = response.data;
+      const messageId = this.generateMessageId();
       
-      // Send start streaming message
-      wsServer.sendMessage(clientId, {
-        type: 'stream-start',
+      // Send AI response back to client
+      const responseMessage = {
+        type: 'ai-response',
         messageId: messageId,
-        timestamp: new Date().toISOString()
+        message: aiResponse.response,
+        timestamp: aiResponse.timestamp || new Date().toISOString(),
+        patient_context: aiResponse.patient_context || []
+      };
+
+      wsServer.sendMessage(clientId, responseMessage);
+
+      // Store AI response in session
+      session.messages.push({
+        type: 'ai-response',
+        message: aiResponse.response,
+        timestamp: new Date(),
+        from: 'assistant',
+        messageId: messageId,
+        patient_context: aiResponse.patient_context
       });
 
-      response.data.on('data', (chunk) => {
-        buffer += chunk.toString();
-        
-        // Process complete lines
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete line in buffer
-        
-        for (const line of lines) {
-          this.processStreamLine(line, clientId, messageId, wsServer);
-        }
-      });
-
-      response.data.on('end', () => {
-        // Process any remaining data in buffer
-        if (buffer.trim()) {
-          this.processStreamLine(buffer, clientId, messageId, wsServer);
-        }
-        
-        // Send stream end message
-        wsServer.sendMessage(clientId, {
-          type: 'stream-end',
-          messageId: messageId,
-          timestamp: new Date().toISOString()
-        });
-
-        console.log(`Streaming completed for client: ${clientId}`);
-      });
-
-      response.data.on('error', (error) => {
-        console.error('Stream error:', error);
-        wsServer.sendError(clientId, 'Stream error occurred');
-      });
+      console.log(`AI response sent to client ${clientId}: ${aiResponse.response.substring(0, 100)}...`);
 
     } catch (error) {
-      console.error('FastAPI request error:', error);
+      console.error('Python AI API request error:', error);
       
+      // Handle specific error types
       if (error.code === 'ECONNREFUSED') {
-        wsServer.sendError(clientId, 'AI service is currently unavailable');
-      } else if (error.code === 'TIMEOUT') {
+        wsServer.sendError(clientId, 'AI service is currently unavailable. Please try again later.');
+      } else if (error.code === 'TIMEOUT' || error.code === 'ENOTFOUND') {
         wsServer.sendError(clientId, 'Request timeout - please try again');
+      } else if (error.response) {
+        // API returned an error response
+        const statusCode = error.response.status;
+        const errorMessage = error.response.data?.detail || error.response.data?.message || 'AI service error';
+        
+        console.error(`AI API Error ${statusCode}:`, errorMessage);
+        wsServer.sendError(clientId, `AI service error: ${errorMessage}`);
       } else {
         wsServer.sendError(clientId, 'Failed to connect to AI service');
       }
     }
   }
 
-  processStreamLine(line, clientId, messageId, wsServer) {
-    line = line.trim();
-    if (!line) return;
-
-    try {
-      // Handle Server-Sent Events format
-      if (line.startsWith('data: ')) {
-        const data = line.substring(6); // Remove 'data: ' prefix
-        
-        if (data === '[DONE]') {
-          // Stream completion indicator
-          return;
-        }
-
-        // Try to parse as JSON (OpenAI format)
-        try {
-          const parsed = JSON.parse(data);
-          
-          if (parsed.choices && parsed.choices[0].delta) {
-            const delta = parsed.choices[0].delta;
-            
-            if (delta.content) {
-              // Send token to client
-              wsServer.sendMessage(clientId, {
-                type: 'stream-token',
-                messageId: messageId,
-                token: delta.content,
-                timestamp: new Date().toISOString()
-              });
-            }
-          }
-        } catch (parseError) {
-          // If not JSON, treat as plain text token
-          wsServer.sendMessage(clientId, {
-            type: 'stream-token',
-            messageId: messageId,
-            token: data,
-            timestamp: new Date().toISOString()
-          });
-        }
-      } else {
-        // Handle plain text streaming
-        wsServer.sendMessage(clientId, {
-          type: 'stream-token',
-          messageId: messageId,
-          token: line,
-          timestamp: new Date().toISOString()
-        });
-      }
-    } catch (error) {
-      console.error('Error processing stream line:', error);
-    }
-  }
-
-  buildContext(session) {
-    // Build conversation context from session messages
-    const recentMessages = session.messages
-      .filter(msg => msg.type === 'chat' || msg.type === 'ai-response')
-      .slice(-10) // Last 10 messages for context
-      .map(msg => ({
-        role: msg.from === 'user' ? 'user' : 'assistant',
-        content: msg.content || msg.message
-      }));
-
-    return {
-      conversation_history: recentMessages,
-      user_id: session.userId,
-      session_start: session.createdAt
-    };
-  }
-
   generateMessageId() {
     return 'msg_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
   }
 
-  // Handle different FastAPI response formats
-  async handleNonStreamingResponse(clientId, requestData, wsServer) {
-    try {
-      const response = await axios({
-        method: 'POST',
-        url: `${this.fastApiUrl}/api/v1/chat/ai-response`,
-        data: requestData,
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        timeout: 30000
-      });
-
-      // Send complete response
-      wsServer.sendMessage(clientId, {
-        type: 'ai-response',
-        message: response.data.response || response.data.message,
-        messageId: this.generateMessageId(),
-        timestamp: new Date().toISOString()
-      });
-
-      // Store in session
-      const session = wsServer.getSessionData(clientId);
-      if (session) {
-        session.messages.push({
-          type: 'ai-response',
-          message: response.data.response || response.data.message,
-          timestamp: new Date(),
-          from: 'assistant'
-        });
-      }
-
-    } catch (error) {
-      console.error('Non-streaming request error:', error);
-      wsServer.sendError(clientId, 'Failed to get AI response');
-    }
-  }
-
-  // Health check for FastAPI service
-  async checkFastAPIHealth() {
+  // Health check for Python FastAPI service
+  async checkPythonAPIHealth() {
     try {
       const response = await axios.get(`${this.fastApiUrl}/health`, {
         timeout: 5000
       });
       return response.status === 200;
     } catch (error) {
-      console.error('FastAPI health check failed:', error.message);
+      console.error('Python AI API health check failed:', error.message);
       return false;
+    }
+  }
+
+  // Validate message format
+  validateMessage(message) {
+    if (!message) {
+      return { valid: false, error: 'Message is required' };
+    }
+
+    const query = message.content || message.message || message.query;
+    
+    if (!query || typeof query !== 'string') {
+      return { valid: false, error: 'Message content must be a string' };
+    }
+
+    if (query.trim().length === 0) {
+      return { valid: false, error: 'Message content cannot be empty' };
+    }
+
+    if (query.length > 2000) {
+      return { valid: false, error: 'Message content cannot exceed 2000 characters' };
+    }
+
+    return { valid: true, query: query.trim() };
+  }
+
+  // Format error response for consistent error handling
+  formatErrorResponse(error, defaultMessage = 'An error occurred') {
+    if (error.response) {
+      return {
+        type: 'error',
+        message: error.response.data?.detail || error.response.data?.message || defaultMessage,
+        statusCode: error.response.status,
+        timestamp: new Date().toISOString()
+      };
+    } else if (error.code === 'ECONNREFUSED') {
+      return {
+        type: 'error',
+        message: 'AI service is currently unavailable',
+        code: 'SERVICE_UNAVAILABLE',
+        timestamp: new Date().toISOString()
+      };
+    } else if (error.code === 'TIMEOUT') {
+      return {
+        type: 'error',
+        message: 'Request timeout - please try again',
+        code: 'TIMEOUT',
+        timestamp: new Date().toISOString()
+      };
+    } else {
+      return {
+        type: 'error',
+        message: defaultMessage,
+        timestamp: new Date().toISOString()
+      };
     }
   }
 }

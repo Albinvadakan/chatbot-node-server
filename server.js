@@ -65,19 +65,19 @@ class ChatbotServer {
       this.wsServer = new WebSocketServer(this.server, this.authService);
       this.wsServer.startHealthCheck();
 
-      // Check FastAPI connectivity
-      console.log('Checking FastAPI connectivity...');
-      const fastApiHealthy = await this.messageHandler.checkFastAPIHealth();
-      if (fastApiHealthy) {
-        console.log('✓ FastAPI service is reachable');
+      // Check Python AI API connectivity
+      console.log('Checking Python AI API connectivity...');
+      const pythonApiHealthy = await this.messageHandler.checkPythonAPIHealth();
+      if (pythonApiHealthy) {
+        console.log('✓ Python AI API service is reachable');
       } else {
-        console.warn('⚠ FastAPI service is not reachable - chat functionality may be limited');
+        console.warn('⚠ Python AI API service is not reachable - chat functionality may be limited');
       }
 
       // Start the server
       const port = process.env.PORT || 3001;
       this.server.listen(port, () => {
-        printServerInfo(port, fastApiHealthy);
+        printServerInfo(port, pythonApiHealthy);
       });
 
       // Graceful shutdown handling
