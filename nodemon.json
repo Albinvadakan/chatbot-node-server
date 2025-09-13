@@ -1,0 +1,23 @@
+{
+  "watch": [
+    "server.js",
+    "auth.js",
+    "websocketServer.js",
+    "messageHandler.js",
+    "controllers/",
+    "routes/",
+    "middleware/",
+    "utils/"
+  ],
+  "ext": "js,json",
+  "ignore": [
+    "node_modules/",
+    "logs/",
+    "*.log"
+  ],
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "delay": 1000,
+  "verbose": true
+}
