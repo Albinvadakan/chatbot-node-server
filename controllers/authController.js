@@ -1,6 +1,7 @@
 class AuthController {
-  constructor(authService) {
+  constructor(authService, feedbackService = null) {
     this.authService = authService;
+    this.feedbackService = feedbackService;
   }
 
   login = async (req, res) => {
@@ -81,19 +82,97 @@ class AuthController {
         });
       }
 
+      // Prepare user response
+      const userResponse = {
+        id: user._id,
+        username: user.username,
+        email: user.email
+      };
+
+      // If feedback service is available, include analytics
+      if (this.feedbackService) {
+        try {
+          const analytics = await this.feedbackService.getUserAnalytics(user._id);
+          userResponse.analytics = analytics;
+        } catch (analyticsError) {
+          console.error('Error fetching user analytics:', analyticsError);
+          // Continue without analytics if there's an error
+          userResponse.analytics = {
+            totalQuestions: 0,
+            positiveCount: 0,
+            negativeCount: 0,
+            positivePercentage: 0,
+            negativePercentage: 0,
+            recentFeedback: []
+          };
+        }
+      }
+
       res.json({
         success: true,
-        user: {
-          id: user._id,
-          username: user.username,
-          email: user.email
-        }
+        user: userResponse
       });
     } catch (error) {
       console.error('Token verification error:', error);
       res.status(401).json({
         success: false,
         message: 'Invalid token'
+      });
+    }
+  };
+
+  // Get user profile with analytics (requires authentication)
+  getUserProfile = async (req, res) => {
+    try {
+      const user = req.user; // From JWT middleware
+      
+      // Get user details
+      const userDetails = await this.authService.getUserById(user.userId);
+      
+      if (!userDetails) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+
+      // Prepare response
+      const profileResponse = {
+        success: true,
+        user: {
+          id: userDetails._id,
+          username: userDetails.username,
+          email: userDetails.email,
+          createdAt: userDetails.createdAt,
+          lastLogin: userDetails.lastLogin
+        }
+      };
+
+      // Include analytics if feedback service is available
+      if (this.feedbackService) {
+        try {
+          const analytics = await this.feedbackService.getUserAnalytics(userDetails._id);
+          profileResponse.user.analytics = analytics;
+        } catch (analyticsError) {
+          console.error('Error fetching user analytics for profile:', analyticsError);
+          profileResponse.user.analytics = {
+            totalQuestions: 0,
+            positiveCount: 0,
+            negativeCount: 0,
+            positivePercentage: 0,
+            negativePercentage: 0,
+            recentFeedback: []
+          };
+        }
+      }
+
+      res.json(profileResponse);
+      
+    } catch (error) {
+      console.error('Get user profile error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to get user profile'
       });
     }
   };

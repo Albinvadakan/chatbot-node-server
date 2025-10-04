@@ -182,7 +182,7 @@ Client                          WebSocket Server                    FastAPI
   |<-- Connection confirmed ------------|                              |
   |                                    |                              |
   |-- Send chat message -------------->|                              |
-  |                                    |-- Forward to /chat --------->|
+  |                                    |-- Forward with user context->|
   |<-- stream-start -------------------|                              |
   |<-- stream-token (multiple) --------|<-- AI response streaming ----|
   |<-- stream-end ----------------------|                              |

@@ -3,6 +3,7 @@ const http = require('http');
 require('dotenv').config();
 
 const AuthService = require('./auth');
+const FeedbackService = require('./feedbackService');
 const WebSocketServer = require('./websocketServer');
 const MessageHandler = require('./messageHandler');
 
@@ -19,6 +20,7 @@ class ChatbotServer {
     this.app = express();
     this.server = http.createServer(this.app);
     this.authService = new AuthService();
+    this.feedbackService = new FeedbackService(this.authService);
     this.wsServer = null;
     this.messageHandler = new MessageHandler();
     
@@ -34,8 +36,12 @@ class ChatbotServer {
   }
 
   setupRoutes() {
-    // Authentication routes
-    this.app.use('/api/auth', createAuthRoutes(this.authService));
+    // Authentication routes (with optional feedback service for analytics)
+    this.app.use('/api/auth', createAuthRoutes(this.authService, this.feedbackService));
+
+    // Feedback routes
+    const createFeedbackRoutes = require('./routes/feedbackRoutes');
+    this.app.use('/api', createFeedbackRoutes(this.feedbackService));
 
     // File upload routes (independent of WebSocket)
     const createFileRoutes = require('./routes/fileRoutes');
@@ -60,9 +66,13 @@ class ChatbotServer {
       console.log('Connecting to MongoDB Atlas...');
       await this.authService.connect();
 
+      // Initialize feedback service
+      console.log('Initializing feedback service...');
+      await this.feedbackService.initialize();
+
       // Initialize WebSocket server
       console.log('Setting up WebSocket server...');
-      this.wsServer = new WebSocketServer(this.server, this.authService);
+      this.wsServer = new WebSocketServer(this.server, this.authService, this.feedbackService);
       this.wsServer.startHealthCheck();
 
       // Check Python AI API connectivity

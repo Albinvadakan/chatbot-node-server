@@ -28,10 +28,12 @@ class MessageHandler {
 
       // Prepare request to your FastAPI endpoint
       const requestData = {
-        query: query.trim()
+        query: query.trim(),
+        patientId: session.userId,
+        patientName: session.username
       };
 
-      console.log(`Forwarding chat message to Python AI API: ${query}`);
+      console.log(`Forwarding chat message to Python AI API from patient ${session.username} (${session.userId}): ${query}`);
 
       // Store user message in session
       session.messages.push({
@@ -53,6 +55,8 @@ class MessageHandler {
   async callPythonAIAPI(clientId, requestData, wsServer, session) {
     try {
       console.log('Calling Python AI API with:', requestData);
+
+
       
       const response = await axios({
         method: 'POST',

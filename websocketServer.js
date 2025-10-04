@@ -3,12 +3,13 @@ const url = require('url');
 const AuthService = require('./auth');
 
 class WebSocketServer {
-  constructor(server, authService) {
+  constructor(server, authService, feedbackService = null) {
     this.wss = new WebSocket.Server({ 
       server,
       verifyClient: this.verifyClient.bind(this)
     });
     this.authService = authService;
+    this.feedbackService = feedbackService;
     this.clients = new Map(); // Store authenticated connections
     this.sessions = new Map(); // Store session data
     
@@ -130,6 +131,10 @@ class WebSocketServer {
         await this.handleChatMessage(clientId, message);
         break;
       
+      case 'feedback':
+        await this.handleFeedbackMessage(clientId, message);
+        break;
+      
       case 'human-escalation':
         await this.handleHumanEscalation(clientId, message);
         break;
@@ -198,6 +203,66 @@ class WebSocketServer {
     });
 
     console.log(`Human escalation requested by ${session.username}`);
+  }
+
+  async handleFeedbackMessage(clientId, message) {
+    try {
+      const client = this.clients.get(clientId);
+      const session = this.sessions.get(clientId);
+      
+      if (!client || !session || !this.feedbackService) {
+        this.sendError(clientId, 'Feedback service not available');
+        return;
+      }
+
+      // Validate feedback message format
+      const { userQuestion, feedbackType, messageId } = message;
+      
+      if (!userQuestion || !feedbackType) {
+        this.sendError(clientId, 'userQuestion and feedbackType are required');
+        return;
+      }
+
+      if (!['positive', 'negative'].includes(feedbackType)) {
+        this.sendError(clientId, 'feedbackType must be either "positive" or "negative"');
+        return;
+      }
+
+      // Store the feedback
+      const result = await this.feedbackService.storeFeedback(
+        session.userId,
+        userQuestion,
+        feedbackType,
+        messageId
+      );
+
+      // Send confirmation back to client
+      this.sendMessage(clientId, {
+        type: 'feedback-confirmation',
+        success: true,
+        feedbackId: result.feedbackId,
+        feedbackType: feedbackType,
+        messageId: messageId,
+        message: 'Feedback submitted successfully',
+        timestamp: new Date().toISOString()
+      });
+
+      // Store feedback submission in session
+      session.messages.push({
+        type: 'feedback',
+        feedbackType: feedbackType,
+        userQuestion: userQuestion,
+        messageId: messageId,
+        timestamp: new Date(),
+        from: 'user'
+      });
+
+      console.log(`Feedback submitted by ${session.username}: ${feedbackType} for message ${messageId || 'no-id'}`);
+
+    } catch (error) {
+      console.error('Error handling feedback message:', error);
+      this.sendError(clientId, 'Failed to submit feedback');
+    }
   }
 
   sendMessage(clientId, message) {

@@ -20,7 +20,7 @@ class FileHandler {
         return res.status(415).json({ error: 'Only PDF files are supported' });
       }
 
-      console.log(`Uploading PDF to Python API: ${file.originalname} for user: ${user.userId}`);
+      console.log(`Uploading PDF to Python API: ${file.originalname} for patient: ${user.userId}`);
 
       // Create FormData for Python FastAPI
       const formData = new FormData();
@@ -28,6 +28,10 @@ class FileHandler {
         filename: file.originalname,
         contentType: file.mimetype
       });
+
+      // Add patient context and content type
+      formData.append('patient_id', user.userId);
+      formData.append('content_type', 'patient_private');
 
       // Upload to Python FastAPI /api/v1/upload/pdf endpoint
       const response = await axios({
