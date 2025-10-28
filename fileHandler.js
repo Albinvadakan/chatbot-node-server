@@ -1,9 +1,20 @@
 const axios = require('axios');
 const FormData = require('form-data');
+const FileUploadService = require('./services/fileUploadService');
 
 class FileHandler {
   constructor() {
     this.fastApiUrl = process.env.FASTAPI_URL || 'http://localhost:8000';
+    this.fileUploadService = new FileUploadService();
+    this.initializeService();
+  }
+
+  async initializeService() {
+    try {
+      await this.fileUploadService.connect();
+    } catch (error) {
+      console.error('Failed to initialize FileUploadService:', error);
+    }
   }
 
   // HTTP endpoint handler for file uploads
@@ -49,6 +60,23 @@ class FileHandler {
 
       // Process Python API response
       console.log('Python API Response:', response.data);
+
+      // Save file upload record to MongoDB
+      try {
+        await this.fileUploadService.saveFileUpload(
+          file.originalname,
+          user.userId,
+          {
+            fileSize: file.size,
+            mimeType: file.mimetype,
+            status: 'success',
+            pythonApiResponse: response.data
+          }
+        );
+      } catch (dbError) {
+        console.error('Failed to save file upload record to database:', dbError);
+        // Continue even if database save fails - file upload was successful
+      }
 
       const result = {
         success: true,

@@ -3,13 +3,14 @@ const url = require('url');
 const AuthService = require('./auth');
 
 class WebSocketServer {
-  constructor(server, authService, feedbackService = null) {
+  constructor(server, authService, feedbackService = null, messageHandler = null) {
     this.wss = new WebSocket.Server({ 
       server,
       verifyClient: this.verifyClient.bind(this)
     });
     this.authService = authService;
     this.feedbackService = feedbackService;
+    this.messageHandler = messageHandler;
     this.clients = new Map(); // Store authenticated connections
     this.sessions = new Map(); // Store session data
     
@@ -150,8 +151,12 @@ class WebSocketServer {
 
   async handleChatMessage(clientId, message) {
     try {
-      const MessageHandler = require('./messageHandler');
-      const messageHandler = new MessageHandler();
+      // Use injected message handler if available, otherwise create a new one
+      let messageHandler = this.messageHandler;
+      if (!messageHandler) {
+        const MessageHandler = require('./messageHandler');
+        messageHandler = new MessageHandler();
+      }
       
       // Validate message format
       const validation = messageHandler.validateMessage(message);
@@ -176,8 +181,67 @@ class WebSocketServer {
     }
   }
 
+  async handleFeedbackMessage(clientId, message) {
+    try {
+      const session = this.sessions.get(clientId);
+      
+      if (!session) {
+        this.sendError(clientId, 'Session not found');
+        return;
+      }
+
+      // Get analytics service from message handler
+      const analyticsService = this.messageHandler?.analyticsService;
+      
+      if (!analyticsService) {
+        console.error('Analytics service not available');
+        this.sendError(clientId, 'Analytics service not available');
+        return;
+      }
+
+      // Validate feedback message format
+      const { messageId, feedbackType } = message;
+      
+      if (!messageId || !feedbackType) {
+        this.sendError(clientId, 'messageId and feedbackType are required');
+        return;
+      }
+
+      if (!['positive', 'negative'].includes(feedbackType)) {
+        this.sendError(clientId, 'feedbackType must be either "positive" or "negative"');
+        return;
+      }
+
+      // Update feedback using analytics service
+      const result = await analyticsService.updateFeedback(messageId, feedbackType);
+
+      // Send confirmation back to client
+      this.sendMessage(clientId, {
+        type: 'feedback-confirmation',
+        success: true,
+        messageId: messageId,
+        feedbackType: feedbackType,
+        positiveFeedback: result.positiveFeedback,
+        negativeFeedback: result.negativeFeedback,
+        message: 'Feedback submitted successfully',
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`Feedback submitted by ${session.username}: ${feedbackType} for message ${messageId}`);
+
+    } catch (error) {
+      console.error('Error handling feedback message:', error);
+      this.sendError(clientId, error.message || 'Failed to submit feedback');
+    }
+  }
+
   async handleHumanEscalation(clientId, message) {
     const session = this.sessions.get(clientId);
+    
+    if (!session) {
+      this.sendError(clientId, 'Session not found');
+      return;
+    }
     
     // Store escalation request
     session.messages.push({
@@ -203,66 +267,6 @@ class WebSocketServer {
     });
 
     console.log(`Human escalation requested by ${session.username}`);
-  }
-
-  async handleFeedbackMessage(clientId, message) {
-    try {
-      const client = this.clients.get(clientId);
-      const session = this.sessions.get(clientId);
-      
-      if (!client || !session || !this.feedbackService) {
-        this.sendError(clientId, 'Feedback service not available');
-        return;
-      }
-
-      // Validate feedback message format
-      const { userQuestion, feedbackType, messageId } = message;
-      
-      if (!userQuestion || !feedbackType) {
-        this.sendError(clientId, 'userQuestion and feedbackType are required');
-        return;
-      }
-
-      if (!['positive', 'negative'].includes(feedbackType)) {
-        this.sendError(clientId, 'feedbackType must be either "positive" or "negative"');
-        return;
-      }
-
-      // Store the feedback
-      const result = await this.feedbackService.storeFeedback(
-        session.userId,
-        userQuestion,
-        feedbackType,
-        messageId
-      );
-
-      // Send confirmation back to client
-      this.sendMessage(clientId, {
-        type: 'feedback-confirmation',
-        success: true,
-        feedbackId: result.feedbackId,
-        feedbackType: feedbackType,
-        messageId: messageId,
-        message: 'Feedback submitted successfully',
-        timestamp: new Date().toISOString()
-      });
-
-      // Store feedback submission in session
-      session.messages.push({
-        type: 'feedback',
-        feedbackType: feedbackType,
-        userQuestion: userQuestion,
-        messageId: messageId,
-        timestamp: new Date(),
-        from: 'user'
-      });
-
-      console.log(`Feedback submitted by ${session.username}: ${feedbackType} for message ${messageId || 'no-id'}`);
-
-    } catch (error) {
-      console.error('Error handling feedback message:', error);
-      this.sendError(clientId, 'Failed to submit feedback');
-    }
   }
 
   sendMessage(clientId, message) {

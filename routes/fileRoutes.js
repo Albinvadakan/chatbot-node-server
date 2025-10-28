@@ -2,10 +2,14 @@ const express = require('express');
 const multer = require('multer');
 const { authenticateToken } = require('../middleware');
 
-function createFileRoutes() {
+function createFileRoutes(fileUploadService) {
   const router = express.Router();
   const FileHandler = require('../fileHandler');
   const fileHandler = new FileHandler(); // No WebSocket dependency
+  
+  // Import and initialize controller
+  const FileUploadController = require('../controllers/fileUploadController');
+  const fileUploadController = new FileUploadController(fileUploadService);
 
   // Configure multer for file uploads
   const storage = multer.memoryStorage(); // Store files in memory
@@ -42,6 +46,21 @@ function createFileRoutes() {
       service: 'file-upload',
       timestamp: new Date().toISOString()
     });
+  });
+
+  // Get file upload history for authenticated patient
+  router.get('/files/uploads', authenticateToken, async (req, res) => {
+    await fileUploadController.getMyFileUploads(req, res);
+  });
+
+  // Get file upload statistics for authenticated patient
+  router.get('/files/uploads/stats', authenticateToken, async (req, res) => {
+    await fileUploadController.getMyUploadStats(req, res);
+  });
+
+  // Delete a file upload record
+  router.delete('/files/uploads/:uploadId', authenticateToken, async (req, res) => {
+    await fileUploadController.deleteFileUpload(req, res);
   });
 
   // Handle multer errors

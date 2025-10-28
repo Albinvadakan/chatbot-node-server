@@ -4,6 +4,9 @@ require('dotenv').config();
 
 const AuthService = require('./auth');
 const FeedbackService = require('./feedbackService');
+const FileUploadService = require('./services/fileUploadService');
+const AnalyticsService = require('./services/analyticsService');
+const EscalationService = require('./services/escalationService');
 const WebSocketServer = require('./websocketServer');
 const MessageHandler = require('./messageHandler');
 
@@ -21,8 +24,11 @@ class ChatbotServer {
     this.server = http.createServer(this.app);
     this.authService = new AuthService();
     this.feedbackService = new FeedbackService(this.authService);
+    this.fileUploadService = new FileUploadService();
+    this.analyticsService = new AnalyticsService(this.authService);
+    this.escalationService = new EscalationService(this.authService);
     this.wsServer = null;
-    this.messageHandler = new MessageHandler();
+    this.messageHandler = null; // Will be initialized after analytics service
     
     this.setupApplication();
   }
@@ -39,13 +45,17 @@ class ChatbotServer {
     // Authentication routes (with optional feedback service for analytics)
     this.app.use('/api/auth', createAuthRoutes(this.authService, this.feedbackService));
 
-    // Feedback routes
-    const createFeedbackRoutes = require('./routes/feedbackRoutes');
-    this.app.use('/api', createFeedbackRoutes(this.feedbackService));
+    // Analytics routes - Main feedback and reporting system
+    const createAnalyticsRoutes = require('./routes/analyticsRoutes');
+    this.app.use('/api', createAnalyticsRoutes(this.analyticsService, this.authService));
 
     // File upload routes (independent of WebSocket)
     const createFileRoutes = require('./routes/fileRoutes');
-    this.app.use('/api', createFileRoutes());
+    this.app.use('/api', createFileRoutes(this.fileUploadService));
+
+    // Escalation routes (human assistance requests)
+    const createEscalationRoutes = require('./routes/escalationRoutes');
+    this.app.use('/api', createEscalationRoutes(this.escalationService));
 
     // Server routes will be setup after WebSocket initialization
     this.setupServerRoutes();
@@ -70,9 +80,24 @@ class ChatbotServer {
       console.log('Initializing feedback service...');
       await this.feedbackService.initialize();
 
-      // Initialize WebSocket server
+      // Initialize analytics service
+      console.log('Initializing analytics service...');
+      await this.analyticsService.initialize();
+
+      // Initialize escalation service
+      console.log('Initializing escalation service...');
+      await this.escalationService.initialize();
+
+      // Initialize message handler with analytics service
+      this.messageHandler = new MessageHandler(this.analyticsService);
+
+      // Initialize file upload service
+      console.log('Initializing file upload service...');
+      await this.fileUploadService.connect();
+
+      // Initialize WebSocket server with message handler
       console.log('Setting up WebSocket server...');
-      this.wsServer = new WebSocketServer(this.server, this.authService, this.feedbackService);
+      this.wsServer = new WebSocketServer(this.server, this.authService, this.feedbackService, this.messageHandler);
       this.wsServer.startHealthCheck();
 
       // Check Python AI API connectivity

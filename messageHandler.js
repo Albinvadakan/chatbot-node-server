@@ -1,8 +1,9 @@
 const axios = require('axios');
 
 class MessageHandler {
-  constructor() {
+  constructor(analyticsService = null) {
     this.fastApiUrl = process.env.FASTAPI_URL || 'http://localhost:8000';
+    this.analyticsService = analyticsService;
   }
 
   async handleChatMessage(clientId, message, wsServer) {
@@ -35,16 +36,35 @@ class MessageHandler {
 
       console.log(`Forwarding chat message to Python AI API from patient ${session.username} (${session.userId}): ${query}`);
 
+      // Generate message ID before storing
+      const messageId = this.generateMessageId();
+
       // Store user message in session
       session.messages.push({
         type: 'chat',
         message: query,
         timestamp: new Date(),
-        from: 'user'
+        from: 'user',
+        messageId: messageId
       });
 
+      // Store question in analytics if service is available
+      if (this.analyticsService) {
+        try {
+          await this.analyticsService.storeQuestion(
+            session.userId,
+            session.username,
+            query,
+            messageId
+          );
+        } catch (error) {
+          console.error('Error storing question in analytics:', error);
+          // Don't fail the request if analytics fails
+        }
+      }
+
       // Make request to your Python FastAPI
-      await this.callPythonAIAPI(clientId, requestData, wsServer, session);
+      await this.callPythonAIAPI(clientId, requestData, wsServer, session, messageId);
 
     } catch (error) {
       console.error('Error in handleChatMessage:', error);
@@ -52,7 +72,7 @@ class MessageHandler {
     }
   }
 
-  async callPythonAIAPI(clientId, requestData, wsServer, session) {
+  async callPythonAIAPI(clientId, requestData, wsServer, session, messageId) {
     try {
       console.log('Calling Python AI API with:', requestData);
 
@@ -75,7 +95,6 @@ class MessageHandler {
       }
 
       const aiResponse = response.data;
-      const messageId = this.generateMessageId();
       
       // Send AI response back to client
       const responseMessage = {
@@ -87,6 +106,16 @@ class MessageHandler {
       };
 
       wsServer.sendMessage(clientId, responseMessage);
+
+      // Update analytics with AI response if service is available
+      if (this.analyticsService) {
+        try {
+          await this.analyticsService.updateAIResponse(messageId, aiResponse.response);
+        } catch (error) {
+          console.error('Error updating AI response in analytics:', error);
+          // Don't fail the request if analytics fails
+        }
+      }
 
       // Store AI response in session
       session.messages.push({
