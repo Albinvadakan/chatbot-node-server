@@ -5,14 +5,12 @@ const { authenticateToken } = require('../middleware');
 function createFileRoutes(fileUploadService) {
   const router = express.Router();
   const FileHandler = require('../fileHandler');
-  const fileHandler = new FileHandler(); // No WebSocket dependency
+  const fileHandler = new FileHandler();
   
-  // Import and initialize controller
   const FileUploadController = require('../controllers/fileUploadController');
   const fileUploadController = new FileUploadController(fileUploadService);
 
-  // Configure multer for file uploads
-  const storage = multer.memoryStorage(); // Store files in memory
+  const storage = multer.memoryStorage();
   const upload = multer({
     storage: storage,
     limits: {
@@ -20,7 +18,6 @@ function createFileRoutes(fileUploadService) {
       files: 1 // Only one file at a time
     },
     fileFilter: (req, file, cb) => {
-      // Only allow PDF files
       if (file.mimetype === 'application/pdf') {
         cb(null, true);
       } else {
@@ -29,7 +26,6 @@ function createFileRoutes(fileUploadService) {
     }
   });
 
-  // Upload endpoint
   router.post('/files/upload', 
     authenticateToken, 
     upload.single('file'), 
@@ -38,7 +34,6 @@ function createFileRoutes(fileUploadService) {
     }
   );
 
-  // Upload service health check
   router.get('/files/health', async (req, res) => {
     const isHealthy = await fileHandler.checkUploadServiceHealth();
     res.status(isHealthy ? 200 : 503).json({
@@ -48,22 +43,18 @@ function createFileRoutes(fileUploadService) {
     });
   });
 
-  // Get file upload history for authenticated patient
   router.get('/files/uploads', authenticateToken, async (req, res) => {
     await fileUploadController.getMyFileUploads(req, res);
   });
 
-  // Get file upload statistics for authenticated patient
   router.get('/files/uploads/stats', authenticateToken, async (req, res) => {
     await fileUploadController.getMyUploadStats(req, res);
   });
 
-  // Delete a file upload record
   router.delete('/files/uploads/:uploadId', authenticateToken, async (req, res) => {
     await fileUploadController.deleteFileUpload(req, res);
   });
 
-  // Handle multer errors
   router.use((error, req, res, next) => {
     if (error instanceof multer.MulterError) {
       if (error.code === 'LIMIT_FILE_SIZE') {

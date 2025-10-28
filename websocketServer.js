@@ -11,8 +11,8 @@ class WebSocketServer {
     this.authService = authService;
     this.feedbackService = feedbackService;
     this.messageHandler = messageHandler;
-    this.clients = new Map(); // Store authenticated connections
-    this.sessions = new Map(); // Store session data
+    this.clients = new Map();
+    this.sessions = new Map();
     
     this.setupEventHandlers();
   }
@@ -27,7 +27,6 @@ class WebSocketServer {
         return false;
       }
 
-      // Verify JWT token
       const decoded = this.authService.verifyToken(token);
       info.req.user = decoded;
       return true;
@@ -41,10 +40,7 @@ class WebSocketServer {
     this.wss.on('connection', (ws, req) => {
       const user = req.user;
       const clientId = this.generateClientId();
-      
       console.log(`WebSocket connected: ${user.username} (${clientId})`);
-      
-      // Store client connection
       this.clients.set(clientId, {
         ws,
         user,
@@ -52,7 +48,6 @@ class WebSocketServer {
         lastActivity: new Date()
       });
 
-      // Initialize session
       this.sessions.set(clientId, {
         userId: user.userId,
         username: user.username,
@@ -60,7 +55,6 @@ class WebSocketServer {
         createdAt: new Date()
       });
 
-      // Set up client-specific event handlers
       this.setupClientHandlers(ws, clientId);
     });
 
@@ -91,14 +85,12 @@ class WebSocketServer {
     });
 
     ws.on('pong', () => {
-      // Update last activity on pong response
       const client = this.clients.get(clientId);
       if (client) {
         client.lastActivity = new Date();
       }
     });
 
-    // Send welcome message
     this.sendMessage(clientId, {
       type: 'connection',
       message: 'Connected to chatbot server',
@@ -115,10 +107,8 @@ class WebSocketServer {
       return;
     }
 
-    // Update last activity
     client.lastActivity = new Date();
-    
-    // Store message in session
+
     session.messages.push({
       ...message,
       timestamp: new Date(),
@@ -151,28 +141,24 @@ class WebSocketServer {
 
   async handleChatMessage(clientId, message) {
     try {
-      // Use injected message handler if available, otherwise create a new one
       let messageHandler = this.messageHandler;
       if (!messageHandler) {
         const MessageHandler = require('./messageHandler');
         messageHandler = new MessageHandler();
       }
       
-      // Validate message format
       const validation = messageHandler.validateMessage(message);
       if (!validation.valid) {
         this.sendError(clientId, validation.error);
         return;
       }
 
-      // Send typing indicator
       this.sendMessage(clientId, {
         type: 'typing',
         message: 'AI is thinking...',
         timestamp: new Date().toISOString()
       });
 
-      // Forward to message handler
       await messageHandler.handleChatMessage(clientId, message, this);
       
     } catch (error) {
@@ -190,7 +176,6 @@ class WebSocketServer {
         return;
       }
 
-      // Get analytics service from message handler
       const analyticsService = this.messageHandler?.analyticsService;
       
       if (!analyticsService) {
@@ -199,7 +184,6 @@ class WebSocketServer {
         return;
       }
 
-      // Validate feedback message format
       const { messageId, feedbackType } = message;
       
       if (!messageId || !feedbackType) {
@@ -211,11 +195,7 @@ class WebSocketServer {
         this.sendError(clientId, 'feedbackType must be either "positive" or "negative"');
         return;
       }
-
-      // Update feedback using analytics service
       const result = await analyticsService.updateFeedback(messageId, feedbackType);
-
-      // Send confirmation back to client
       this.sendMessage(clientId, {
         type: 'feedback-confirmation',
         success: true,
@@ -242,8 +222,7 @@ class WebSocketServer {
       this.sendError(clientId, 'Session not found');
       return;
     }
-    
-    // Store escalation request
+
     session.messages.push({
       type: 'system',
       message: 'Human escalation requested',
@@ -251,7 +230,6 @@ class WebSocketServer {
       from: 'system'
     });
 
-    // Send predefined response
     const response = {
       type: 'human-escalation-response',
       message: 'A human agent will contact you soon.',
@@ -260,7 +238,6 @@ class WebSocketServer {
 
     this.sendMessage(clientId, response);
     
-    // Store response in session
     session.messages.push({
       ...response,
       from: 'system'
@@ -294,7 +271,6 @@ class WebSocketServer {
 
   cleanupClient(clientId) {
     this.clients.delete(clientId);
-    // Keep session data for potential reconnection (could be cleaned up later)
     console.log(`Cleaned up client: ${clientId}`);
   }
 
@@ -310,7 +286,6 @@ class WebSocketServer {
     return this.sessions.get(clientId);
   }
 
-  // Health check and cleanup methods
   startHealthCheck() {
     setInterval(() => {
       this.clients.forEach((client, clientId) => {
@@ -320,7 +295,7 @@ class WebSocketServer {
           this.cleanupClient(clientId);
         }
       });
-    }, 30000); // Check every 30 seconds
+    }, 30000);
   }
 
   cleanup() {

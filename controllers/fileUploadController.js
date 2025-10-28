@@ -10,7 +10,7 @@ class FileUploadController {
    */
   async getMyFileUploads(req, res) {
     try {
-      const patientId = req.user.userId; // From JWT token
+      const patientId = req.user.userId;
 
       const uploads = await this.fileUploadService.getFileUploadsByPatientId(patientId);
 

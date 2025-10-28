@@ -17,11 +17,10 @@ class FileHandler {
     }
   }
 
-  // HTTP endpoint handler for file uploads
   async handleHTTPFileUpload(req, res) {
     try {
-      const user = req.user; // From JWT middleware
-      const file = req.file; // From multer middleware
+      const user = req.user;
+      const file = req.file;
 
       if (!file) {
         return res.status(400).json({ error: 'No file provided' });
@@ -33,18 +32,15 @@ class FileHandler {
 
       console.log(`Uploading PDF to Python API: ${file.originalname} for patient: ${user.userId}`);
 
-      // Create FormData for Python FastAPI
       const formData = new FormData();
       formData.append('file', file.buffer, {
         filename: file.originalname,
         contentType: file.mimetype
       });
 
-      // Add patient context and content type
       formData.append('patient_id', user.userId);
       formData.append('content_type', 'patient_private');
 
-      // Upload to Python FastAPI /api/v1/upload/pdf endpoint
       const response = await axios({
         method: 'POST',
         url: `${this.fastApiUrl}/api/v1/upload/pdf`,
@@ -53,15 +49,13 @@ class FileHandler {
           ...formData.getHeaders(),
           'Accept': 'application/json'
         },
-        timeout: 300000, // 5 minutes for large PDF processing
-        maxContentLength: 50 * 1024 * 1024, // 50MB
+        timeout: 300000,
+        maxContentLength: 50 * 1024 * 1024,
         maxBodyLength: 50 * 1024 * 1024
       });
 
-      // Process Python API response
       console.log('Python API Response:', response.data);
 
-      // Save file upload record to MongoDB
       try {
         await this.fileUploadService.saveFileUpload(
           file.originalname,
@@ -75,7 +69,6 @@ class FileHandler {
         );
       } catch (dbError) {
         console.error('Failed to save file upload record to database:', dbError);
-        // Continue even if database save fails - file upload was successful
       }
 
       const result = {
@@ -84,7 +77,6 @@ class FileHandler {
         fileSize: file.size,
         uploadedAt: new Date().toISOString(),
         userId: user.userId,
-        // Include Python API response data
         ...response.data
       };
 
@@ -137,7 +129,6 @@ class FileHandler {
     }
   }
 
-  // Health check for Python upload service
   async checkUploadServiceHealth() {
     try {
       const response = await axios.get(`${this.fastApiUrl}/health`, {

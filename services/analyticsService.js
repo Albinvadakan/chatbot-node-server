@@ -7,7 +7,6 @@ class AnalyticsService {
     this.analytics = null;
   }
 
-  // Initialize the analytics service with MongoDB connection
   async initialize() {
     try {
       if (!this.authService.db) {
@@ -17,7 +16,6 @@ class AnalyticsService {
       this.db = this.authService.db;
       this.analytics = this.db.collection('chat_analytics');
 
-      // Create indexes for better query performance
       await this.createIndexes();
 
       console.log('Analytics service initialized successfully');
@@ -27,7 +25,6 @@ class AnalyticsService {
     }
   }
 
-  // Create MongoDB indexes for better query performance
   async createIndexes() {
     try {
       await this.analytics.createIndex({ userId: 1, createdAt: -1 });
@@ -137,23 +134,21 @@ class AnalyticsService {
         throw new Error('feedbackType must be either "positive" or "negative"');
       }
 
-      // Find existing record
       const existingRecord = await this.analytics.findOne({ messageId: messageId });
       
       if (!existingRecord) {
         throw new Error('Analytics record not found for messageId: ' + messageId);
       }
 
-      // Prepare update based on feedback type
       const updateFields = {
         updatedAt: new Date()
       };
 
       if (feedbackType === 'positive') {
         updateFields.positiveFeedback = true;
-        updateFields.negativeFeedback = false; // Reset negative if they change their mind
+        updateFields.negativeFeedback = false;
       } else {
-        updateFields.positiveFeedback = false; // Reset positive if they change their mind
+        updateFields.positiveFeedback = false;
         updateFields.negativeFeedback = true;
       }
 
@@ -206,7 +201,6 @@ class AnalyticsService {
         negativeCount: 0
       };
 
-      // Get username from first record
       const firstRecord = await this.analytics.findOne({ userId: userId });
       const username = firstRecord ? firstRecord.username : null;
 
