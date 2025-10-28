@@ -14,7 +14,7 @@ class AuthService {
     try {
       this.client = new MongoClient(process.env.MONGODB_URI);
       await this.client.connect();
-      this.db = this.client.db('chatbot_db'); // Specify your desired database name
+      this.db = this.client.db('chatbot_db');
       this.users = this.db.collection('users');
       console.log('Connected to MongoDB Atlas - Database: chatbot_db');
     } catch (error) {
@@ -32,17 +32,14 @@ class AuthService {
 
   async createUser(username, password, email = null) {
     try {
-      // Check if user already exists
       const existingUser = await this.users.findOne({ username });
       if (existingUser) {
         throw new Error('User already exists');
       }
 
-      // Hash password
       const saltRounds = 12;
       const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-      // Create user document
       const user = {
         username,
         password: hashedPassword,
@@ -63,25 +60,21 @@ class AuthService {
 
   async authenticateUser(username, password) {
     try {
-      // Find user by username
       const user = await this.users.findOne({ username, isActive: true });
       if (!user) {
         throw new Error('Invalid username or password');
       }
 
-      // Verify password
       const isValidPassword = await bcrypt.compare(password, user.password);
       if (!isValidPassword) {
         throw new Error('Invalid username or password');
       }
 
-      // Update last login
       await this.users.updateOne(
         { _id: user._id },
         { $set: { lastLogin: new Date() } }
       );
 
-      // Generate JWT token
       const token = this.generateToken(user);
 
       return {
@@ -125,7 +118,6 @@ class AuthService {
     try {
       console.log('Looking for user with ID:', userId);
       
-      // Convert string ID to ObjectId if needed
       let objectId;
       if (typeof userId === 'string') {
         objectId = new ObjectId(userId);

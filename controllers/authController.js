@@ -82,21 +82,18 @@ class AuthController {
         });
       }
 
-      // Prepare user response
       const userResponse = {
         id: user._id,
         username: user.username,
         email: user.email
       };
 
-      // If feedback service is available, include analytics
       if (this.feedbackService) {
         try {
           const analytics = await this.feedbackService.getUserAnalytics(user._id);
           userResponse.analytics = analytics;
         } catch (analyticsError) {
           console.error('Error fetching user analytics:', analyticsError);
-          // Continue without analytics if there's an error
           userResponse.analytics = {
             totalQuestions: 0,
             positiveCount: 0,
@@ -121,12 +118,9 @@ class AuthController {
     }
   };
 
-  // Get user profile with analytics (requires authentication)
   getUserProfile = async (req, res) => {
     try {
-      const user = req.user; // From JWT middleware
-      
-      // Get user details
+      const user = req.user;
       const userDetails = await this.authService.getUserById(user.userId);
       
       if (!userDetails) {
@@ -136,7 +130,6 @@ class AuthController {
         });
       }
 
-      // Prepare response
       const profileResponse = {
         success: true,
         user: {
@@ -148,7 +141,6 @@ class AuthController {
         }
       };
 
-      // Include analytics if feedback service is available
       if (this.feedbackService) {
         try {
           const analytics = await this.feedbackService.getUserAnalytics(userDetails._id);

@@ -13,7 +13,6 @@ class MessageHandler {
         throw new Error('Session not found');
       }
 
-      // Extract query from message
       const query = message.content || message.message || message.query;
       
       if (!query || query.trim().length === 0) {
@@ -21,13 +20,11 @@ class MessageHandler {
         return;
       }
 
-      // Validate query length (1-2000 characters as per API spec)
       if (query.length > 2000) {
         wsServer.sendError(clientId, 'Message too long. Maximum 2000 characters allowed.');
         return;
       }
 
-      // Prepare request to your FastAPI endpoint
       const requestData = {
         query: query.trim(),
         patientId: session.userId,
@@ -36,10 +33,8 @@ class MessageHandler {
 
       console.log(`Forwarding chat message to Python AI API from patient ${session.username} (${session.userId}): ${query}`);
 
-      // Generate message ID before storing
       const messageId = this.generateMessageId();
 
-      // Store user message in session
       session.messages.push({
         type: 'chat',
         message: query,
@@ -48,7 +43,6 @@ class MessageHandler {
         messageId: messageId
       });
 
-      // Store question in analytics if service is available
       if (this.analyticsService) {
         try {
           await this.analyticsService.storeQuestion(
@@ -59,11 +53,9 @@ class MessageHandler {
           );
         } catch (error) {
           console.error('Error storing question in analytics:', error);
-          // Don't fail the request if analytics fails
         }
       }
 
-      // Make request to your Python FastAPI
       await this.callPythonAIAPI(clientId, requestData, wsServer, session, messageId);
 
     } catch (error) {
@@ -86,17 +78,15 @@ class MessageHandler {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        timeout: 30000 // 30 seconds timeout
+        timeout: 30000
       });
 
-      // Validate response structure
       if (!response.data || typeof response.data.response !== 'string') {
         throw new Error('Invalid response format from AI API');
       }
 
       const aiResponse = response.data;
-      
-      // Send AI response back to client
+
       const responseMessage = {
         type: 'ai-response',
         messageId: messageId,
@@ -107,17 +97,14 @@ class MessageHandler {
 
       wsServer.sendMessage(clientId, responseMessage);
 
-      // Update analytics with AI response if service is available
       if (this.analyticsService) {
         try {
           await this.analyticsService.updateAIResponse(messageId, aiResponse.response);
         } catch (error) {
           console.error('Error updating AI response in analytics:', error);
-          // Don't fail the request if analytics fails
         }
       }
 
-      // Store AI response in session
       session.messages.push({
         type: 'ai-response',
         message: aiResponse.response,
@@ -132,13 +119,11 @@ class MessageHandler {
     } catch (error) {
       console.error('Python AI API request error:', error);
       
-      // Handle specific error types
       if (error.code === 'ECONNREFUSED') {
         wsServer.sendError(clientId, 'AI service is currently unavailable. Please try again later.');
       } else if (error.code === 'TIMEOUT' || error.code === 'ENOTFOUND') {
         wsServer.sendError(clientId, 'Request timeout - please try again');
       } else if (error.response) {
-        // API returned an error response
         const statusCode = error.response.status;
         const errorMessage = error.response.data?.detail || error.response.data?.message || 'AI service error';
         
@@ -154,7 +139,6 @@ class MessageHandler {
     return 'msg_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
   }
 
-  // Health check for Python FastAPI service
   async checkPythonAPIHealth() {
     try {
       const response = await axios.get(`${this.fastApiUrl}/health`, {
@@ -167,7 +151,6 @@ class MessageHandler {
     }
   }
 
-  // Validate message format
   validateMessage(message) {
     if (!message) {
       return { valid: false, error: 'Message is required' };
@@ -190,7 +173,6 @@ class MessageHandler {
     return { valid: true, query: query.trim() };
   }
 
-  // Format error response for consistent error handling
   formatErrorResponse(error, defaultMessage = 'An error occurred') {
     if (error.response) {
       return {

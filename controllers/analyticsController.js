@@ -12,7 +12,6 @@ class AnalyticsController {
     try {
       const { messageId, feedbackType } = req.body;
 
-      // Validate input
       if (!messageId) {
         return res.status(400).json({
           success: false,
@@ -27,7 +26,6 @@ class AnalyticsController {
         });
       }
 
-      // Update feedback
       const result = await this.analyticsService.updateFeedback(messageId, feedbackType);
 
       res.status(200).json(result);

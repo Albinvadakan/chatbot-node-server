@@ -67,7 +67,6 @@ class FileUploadService {
     try {
       console.log('Fetching file uploads for patient:', patientId);
       
-      // Convert string ID to ObjectId if needed
       let objectId;
       if (typeof patientId === 'string') {
         objectId = new ObjectId(patientId);
@@ -77,7 +76,7 @@ class FileUploadService {
 
       const uploads = await this.fileUploads
         .find({ patientId: objectId })
-        .sort({ uploadedAt: -1 }) // Most recent first
+        .sort({ uploadedAt: -1 })
         .toArray();
 
       console.log(`Found ${uploads.length} file uploads for patient ${patientId}`);

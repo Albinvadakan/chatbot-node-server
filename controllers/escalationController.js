@@ -3,13 +3,11 @@ class EscalationController {
     this.escalationService = escalationService;
   }
 
-  // Submit a new escalation request
   submitEscalation = async (req, res) => {
     try {
-      const user = req.user; // From JWT middleware
+      const user = req.user;
       const { reason, contactNumber, priorityLevel } = req.body;
 
-      // Validate required fields
       if (!reason || !contactNumber || !priorityLevel) {
         return res.status(400).json({
           success: false,
@@ -17,7 +15,6 @@ class EscalationController {
         });
       }
 
-      // Validate reason
       if (reason.trim().length === 0) {
         return res.status(400).json({
           success: false,
@@ -32,7 +29,6 @@ class EscalationController {
         });
       }
 
-      // Validate contact number
       const contactNumberStr = contactNumber.toString().trim();
       if (contactNumberStr.length < 10 || contactNumberStr.length > 15) {
         return res.status(400).json({
@@ -41,7 +37,6 @@ class EscalationController {
         });
       }
 
-      // Validate priority level
       const validPriorityLevels = ['low', 'medium', 'high', 'urgent'];
       if (!validPriorityLevels.includes(priorityLevel.toLowerCase())) {
         return res.status(400).json({
@@ -50,7 +45,6 @@ class EscalationController {
         });
       }
 
-      // Submit the escalation
       const result = await this.escalationService.createEscalation(
         user.userId,
         reason,
@@ -69,13 +63,11 @@ class EscalationController {
     }
   };
 
-  // Get all escalation entries (with pagination and filtering)
   getAllEscalations = async (req, res) => {
     try {
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 20;
 
-      // Build filters from query parameters
       const filters = {};
       if (req.query.status) {
         filters.status = req.query.status;
@@ -106,10 +98,9 @@ class EscalationController {
     }
   };
 
-  // Get escalations for the authenticated user
   getUserEscalations = async (req, res) => {
     try {
-      const user = req.user; // From JWT middleware
+      const user = req.user;
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 10;
 
@@ -126,12 +117,11 @@ class EscalationController {
     }
   };
 
-  // Update escalation status
   updateEscalationStatus = async (req, res) => {
     try {
       const { escalationId } = req.params;
       const { status } = req.body;
-      const user = req.user; // From JWT middleware
+      const user = req.user; 
 
       if (!status) {
         return res.status(400).json({
@@ -148,7 +138,6 @@ class EscalationController {
         });
       }
 
-      // Allow users to update only their own escalations
       const result = await this.escalationService.updateEscalationStatus(
         escalationId,
         status,
@@ -166,13 +155,11 @@ class EscalationController {
     }
   };
 
-  // Delete escalation
   deleteEscalation = async (req, res) => {
     try {
       const { escalationId } = req.params;
-      const user = req.user; // From JWT middleware
+      const user = req.user; 
 
-      // Allow users to delete only their own escalations
       const result = await this.escalationService.deleteEscalation(
         escalationId,
         user.userId
@@ -189,7 +176,6 @@ class EscalationController {
     }
   };
 
-  // Get escalation statistics
   getEscalationStats = async (req, res) => {
     try {
       const result = await this.escalationService.getEscalationStats();
@@ -205,7 +191,6 @@ class EscalationController {
     }
   };
 
-  // Health check
   healthCheck = async (req, res) => {
     try {
       const health = await this.escalationService.healthCheck();

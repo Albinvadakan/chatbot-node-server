@@ -7,7 +7,6 @@ class EscalationService {
     this.escalations = null;
   }
 
-  // Initialize the escalation service with MongoDB connection
   async initialize() {
     if (!this.authService.db) {
       throw new Error('MongoDB connection not established. Please ensure AuthService is connected.');
@@ -15,25 +14,19 @@ class EscalationService {
     
     this.db = this.authService.db;
     this.escalations = this.db.collection('escalations');
-    
-    // Create indexes for better performance
+
     await this.createIndexes();
     console.log('EscalationService initialized successfully');
   }
 
-  // Create MongoDB indexes for better query performance
   async createIndexes() {
     try {
-      // Index on userId for fast user-specific queries
       await this.escalations.createIndex({ userId: 1 });
       
-      // Index on createdAt for sorting
       await this.escalations.createIndex({ createdAt: -1 });
-      
-      // Index on priority level for filtering
+
       await this.escalations.createIndex({ priorityLevel: 1 });
-      
-      // Index on status for filtering resolved/unresolved escalations
+
       await this.escalations.createIndex({ status: 1 });
       
       console.log('Escalation collection indexes created successfully');
@@ -42,15 +35,12 @@ class EscalationService {
     }
   }
 
-  // Store a new escalation request
   async createEscalation(userId, reason, contactNumber, priorityLevel) {
     try {
-      // Validate required fields
       if (!userId || !reason || !contactNumber || !priorityLevel) {
         throw new Error('UserId, reason, contactNumber, and priorityLevel are required');
       }
 
-      // Validate reason length
       if (reason.trim().length === 0) {
         throw new Error('Reason cannot be empty');
       }
@@ -59,13 +49,11 @@ class EscalationService {
         throw new Error('Reason cannot exceed 1000 characters');
       }
 
-      // Validate contact number format (basic validation)
       const contactNumberStr = contactNumber.toString().trim();
       if (contactNumberStr.length < 10 || contactNumberStr.length > 15) {
         throw new Error('Contact number must be between 10 and 15 digits');
       }
 
-      // Validate priority level
       const validPriorityLevels = ['low', 'medium', 'high', 'urgent'];
       if (!validPriorityLevels.includes(priorityLevel.toLowerCase())) {
         throw new Error('Priority level must be one of: low, medium, high, urgent');
@@ -76,7 +64,7 @@ class EscalationService {
         reason: reason.trim(),
         contactNumber: contactNumberStr,
         priorityLevel: priorityLevel.toLowerCase(),
-        status: 'open', // open, in-progress, resolved
+        status: 'open',
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -94,13 +82,11 @@ class EscalationService {
     }
   }
 
-  // Get all escalation entries with pagination and filtering
   async getAllEscalations(page = 1, limit = 20, filters = {}) {
     try {
       const skip = (page - 1) * limit;
       const query = {};
 
-      // Apply filters
       if (filters.status) {
         query.status = filters.status;
       }
@@ -113,7 +99,6 @@ class EscalationService {
         query.userId = new ObjectId(filters.userId);
       }
 
-      // Date range filter
       if (filters.startDate || filters.endDate) {
         query.createdAt = {};
         if (filters.startDate) {
@@ -124,10 +109,8 @@ class EscalationService {
         }
       }
 
-      // Get total count for pagination
       const totalCount = await this.escalations.countDocuments(query);
 
-      // Fetch escalations with user details
       const escalations = await this.escalations.aggregate([
         { $match: query },
         { $sort: { createdAt: -1 } },
@@ -179,7 +162,6 @@ class EscalationService {
     }
   }
 
-  // Get escalations for a specific user
   async getUserEscalations(userId, page = 1, limit = 10) {
     try {
       const skip = (page - 1) * limit;
@@ -209,7 +191,6 @@ class EscalationService {
     }
   }
 
-  // Update escalation status
   async updateEscalationStatus(escalationId, status, userId = null) {
     try {
       const validStatuses = ['open', 'in-progress', 'resolved'];
@@ -246,7 +227,6 @@ class EscalationService {
     }
   }
 
-  // Delete escalation
   async deleteEscalation(escalationId, userId = null) {
     try {
       const query = { _id: new ObjectId(escalationId) };
@@ -270,7 +250,6 @@ class EscalationService {
     }
   }
 
-  // Get escalation statistics
   async getEscalationStats() {
     try {
       const stats = await this.escalations.aggregate([
@@ -311,14 +290,12 @@ class EscalationService {
     }
   }
 
-  // Health check
   async healthCheck() {
     try {
       if (!this.db) {
         throw new Error('Database connection not established');
       }
 
-      // Test database connectivity
       await this.db.admin().ping();
 
       return {

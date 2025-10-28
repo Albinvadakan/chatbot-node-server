@@ -3,13 +3,11 @@ class FeedbackController {
     this.feedbackService = feedbackService;
   }
 
-  // Submit feedback for a chat response
   submitFeedback = async (req, res) => {
     try {
-      const user = req.user; // From JWT middleware
+      const user = req.user; 
       const { userQuestion, feedbackType, messageId } = req.body;
 
-      // Validate required fields
       if (!userQuestion || !feedbackType) {
         return res.status(400).json({
           success: false,
@@ -17,7 +15,6 @@ class FeedbackController {
         });
       }
 
-      // Validate feedbackType
       if (!['positive', 'negative'].includes(feedbackType)) {
         return res.status(400).json({
           success: false,
@@ -25,7 +22,6 @@ class FeedbackController {
         });
       }
 
-      // Validate userQuestion length
       if (userQuestion.trim().length === 0) {
         return res.status(400).json({
           success: false,
@@ -40,7 +36,6 @@ class FeedbackController {
         });
       }
 
-      // Store the feedback
       const result = await this.feedbackService.storeFeedback(
         user.userId,
         userQuestion,
@@ -64,10 +59,9 @@ class FeedbackController {
     }
   };
 
-  // Get user's feedback analytics
   getUserAnalytics = async (req, res) => {
     try {
-      const user = req.user; // From JWT middleware
+      const user = req.user;
 
       const analytics = await this.feedbackService.getUserAnalytics(user.userId);
 
@@ -86,12 +80,11 @@ class FeedbackController {
     }
   };
 
-  // Get user's feedback history with pagination
   getUserFeedback = async (req, res) => {
     try {
-      const user = req.user; // From JWT middleware
+      const user = req.user;
       const page = parseInt(req.query.page) || 1;
-      const limit = Math.min(parseInt(req.query.limit) || 20, 100); // Max 100 items per page
+      const limit = Math.min(parseInt(req.query.limit) || 20, 100); 
 
       if (page < 1) {
         return res.status(400).json({
@@ -117,11 +110,10 @@ class FeedbackController {
     }
   };
 
-  // Get recent feedback for a user (used for dashboard)
   getRecentFeedback = async (req, res) => {
     try {
-      const user = req.user; // From JWT middleware
-      const limit = Math.min(parseInt(req.query.limit) || 10, 50); // Max 50 items
+      const user = req.user;
+      const limit = Math.min(parseInt(req.query.limit) || 10, 50);
 
       const recentFeedback = await this.feedbackService.getRecentUserFeedback(user.userId, limit);
 
@@ -141,10 +133,9 @@ class FeedbackController {
     }
   };
 
-  // Update existing feedback
   updateFeedback = async (req, res) => {
     try {
-      const user = req.user; // From JWT middleware
+      const user = req.user;
       const { feedbackId } = req.params;
       const { feedbackType } = req.body;
 
@@ -162,7 +153,6 @@ class FeedbackController {
         });
       }
 
-      // First, verify the feedback belongs to the user
       const existingFeedback = await this.feedbackService.feedback.findOne({
         _id: feedbackId,
         userId: user.userId
@@ -192,10 +182,9 @@ class FeedbackController {
     }
   };
 
-  // Delete feedback
   deleteFeedback = async (req, res) => {
     try {
-      const user = req.user; // From JWT middleware
+      const user = req.user;
       const { feedbackId } = req.params;
 
       if (!feedbackId) {
@@ -230,10 +219,9 @@ class FeedbackController {
     }
   };
 
-  // Get feedback by message ID (useful for checking if feedback already exists)
   getFeedbackByMessageId = async (req, res) => {
     try {
-      const user = req.user; // From JWT middleware
+      const user = req.user;
       const { messageId } = req.params;
 
       if (!messageId) {
@@ -267,10 +255,8 @@ class FeedbackController {
     }
   };
 
-  // Health check for feedback service
   healthCheck = async (req, res) => {
     try {
-      // Simple check to verify the feedback service is working
       const isHealthy = this.feedbackService && this.feedbackService.db;
 
       if (isHealthy) {
@@ -302,10 +288,8 @@ class FeedbackController {
     }
   };
 
-  // Get system-wide feedback analytics (admin only - optional)
   getSystemAnalytics = async (req, res) => {
     try {
-      // Note: You might want to add admin role checking here
       const systemAnalytics = await this.feedbackService.getSystemAnalytics();
 
       res.json({
